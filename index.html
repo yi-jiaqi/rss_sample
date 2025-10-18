@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Simple RSS Headlines</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; line-height: 1.45; }
+    h1 { margin: 0 0 8px; }
+    small { color: #666; }
+    .controls { margin: 12px 0 20px; display: flex; gap: 8px; flex-wrap: wrap; }
+    button { padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; background: #fff; cursor: pointer; }
+    button.active { border-color: #000; }
+    ul { list-style: none; padding: 0; }
+    li { margin: 10px 0; }
+    .src { font-size: 12px; opacity: 0.75; margin-left: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Simple RSS Headlines</h1>
+  <small>Demo: merges multiple RSS feeds; click a source to filter.</small>
+
+  <div class="controls" id="controls"></div>
+  <ul id="list"></ul>
+
+  <script>
+    // --- 1) Pick your feeds ---
+const FEEDS = [
+  { id: "bbc", name: "BBC World", url: "https://feeds.bbci.co.uk/news/world/rss.xml" },
+  { id: "aljazeera", name: "Al Jazeera (All)", url: "https://www.aljazeera.com/xml/rss/all.xml" },
+  // Reuters uses feeds.reuters.com for RSS
+  { id: "reuters", name: "Reuters World", url: "https://feeds.reuters.com/reuters/worldNews" },
+
+  // Note: The following two URLs are info pages, not RSS feeds.
+  // Replace them with actual XML feed URLs from those pages.
+  { id: "haaretz_all", name: "Haaretz (All)", url: "https://www.haaretz.com/misc/subscribe-to-rss-feed" },
+  { id: "haaretz_hebrew", name: "Haaretz (Hebrew)", url: "https://www.haaretz.co.il/misc/rss" },
+  { id: "jpost_headlines", name: "JPost Breaking News", url: "https://www.jpost.com/rss/rssfeedsheadlines.aspx" },
+  // The National link below is also an index page. Grab a specific RSS endpoint from there.
+  { id: "the_national", name: "The National (UAE)", url: "https://www.thenationalnews.com/uae/rss-feeds-1.536712" }
+];
+
+    // --- 2) Helper: turn RSS -> JSON via rss2json (easy demo; rate-limited) ---
+    const rss2json = (rssUrl) =>
+      `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
+
+    // --- 3) State ---
+    let items = [];           // merged items
+    let failures = [];        // per-feed errors for diagnostics
+    let activeFilter = "all"; // "all" or a feed id
+
+    // --- 4) Fetch & merge all feeds ---
+    async function loadFeeds() {
+      failures = [];
+      const results = await Promise.allSettled(
+        FEEDS.map(async (f) => {
+          try {
+            const res = await fetch(rss2json(f.url));
+            if (!res.ok) throw new Error(`${f.name} HTTP ${res.status}`);
+            const data = await res.json();
+            if (!data || data.status === "error") {
+              throw new Error(data?.message || "Invalid RSS response");
+            }
+            const mapped = (data.items || []).map(it => ({
+              sourceId: f.id,
+              sourceName: f.name,
+              title: it.title,
+              link: it.link,
+              date: it.pubDate ? new Date(it.pubDate) : null
+            }));
+            return mapped;
+          } catch (e) {
+            failures.push({ id: f.id, name: f.name, message: e.message });
+            throw e;
+          }
+        })
+      );
+
+      items = results.flatMap((r, i) => r.status === "fulfilled" ? r.value : []);
+      // sort newest first
+      items.sort((a, b) => (b.date?.getTime()||0) - (a.date?.getTime()||0));
+      render();
+    }
+
+    // --- 5) Render controls + list ---
+    function render() {
+      const controls = document.getElementById("controls");
+      const list = document.getElementById("list");
+
+      // controls
+      controls.innerHTML = "";
+      const allBtn = button("All", "all");
+      controls.appendChild(allBtn);
+      FEEDS.forEach(f => controls.appendChild(button(f.name, f.id)));
+
+      function button(label, id) {
+        const b = document.createElement("button");
+        b.textContent = label;
+        if (activeFilter === id) b.classList.add("active");
+        b.onclick = () => { activeFilter = id; render(); };
+        return b;
+      }
+
+      // diagnostics for failed feeds (if any)
+      if (failures.length) {
+        const diag = document.createElement("div");
+        diag.style.color = "#a33";
+        diag.style.fontSize = "12px";
+        diag.style.margin = "4px 0 8px";
+        diag.textContent = `Some feeds failed: ${failures.map(f => `${f.name} (${f.message})`).join("; ")}`;
+        controls.appendChild(diag);
+      }
+
+      // list
+      const filtered = activeFilter === "all" ? items : items.filter(it => it.sourceId === activeFilter);
+      list.innerHTML = "";
+      filtered.slice(0, 50).forEach(it => {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = it.link;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = it.title;
+
+        const meta = document.createElement("span");
+        meta.className = "src";
+        const ts = it.date ? it.date.toLocaleString() : "";
+        meta.textContent = `• ${it.sourceName}${ts ? " • " + ts : ""}`;
+
+        li.appendChild(a);
+        li.appendChild(meta);
+        list.appendChild(li);
+      });
+    }
+
+    loadFeeds().catch(err => {
+      document.getElementById("list").innerHTML =
+        `<li>Failed to load feeds: ${err.message}</li>`;
+    });
+  </script>
+</body>
+</html>
