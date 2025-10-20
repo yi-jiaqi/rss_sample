@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Simple RSS Headlines</title>
+  <title>Simple News Fetching by RSS</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; line-height: 1.45; }
@@ -31,13 +31,15 @@ const FEEDS = [
   // Reuters uses feeds.reuters.com for RSS
   { id: "reuters", name: "Reuters World", url: "https://feeds.reuters.com/reuters/worldNews" },
 
-  // Note: The following two URLs are info pages, not RSS feeds.
-  // Replace them with actual XML feed URLs from those pages.
-  { id: "haaretz_all", name: "Haaretz (All)", url: "https://www.haaretz.com/misc/subscribe-to-rss-feed" },
-  { id: "haaretz_hebrew", name: "Haaretz (Hebrew)", url: "https://www.haaretz.co.il/misc/rss" },
+  // Haaretz English: no stable public XML feed found; removing the info page entry to avoid errors.
+  // Haaretz Hebrew: use the general XML feed endpoint below.
+  { id: "haaretz_hebrew", name: "Haaretz (Hebrew)", url: "https://www.haaretz.co.il/srv/htz---all-articles" },
   { id: "jpost_headlines", name: "JPost Breaking News", url: "https://www.jpost.com/rss/rssfeedsheadlines.aspx" },
-  // The National link below is also an index page. Grab a specific RSS endpoint from there.
-  { id: "the_national", name: "The National (UAE)", url: "https://www.thenationalnews.com/uae/rss-feeds-1.536712" }
+  // The National official RSS via Arc Publishing outboundfeeds
+  { id: "the_national", name: "The National (UAE)", url: "https://www.thenationalnews.com/arc/outboundfeeds/rss/?outputType=xml" },
+  // Added reliable world feeds to reduce failures from rss2json
+  { id: "guardian_world", name: "The Guardian World", url: "https://www.theguardian.com/world/rss" },
+  { id: "nytimes_world", name: "NYTimes World", url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml" }
 ];
 
     // --- 2) Helper: turn RSS -> JSON via rss2json (easy demo; rate-limited) ---
